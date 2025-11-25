@@ -131,6 +131,11 @@ module EventToView = {
     | PromptIMUpdate(string)
     | InputMethod(InputMethod.t)
     | ConfigurationChange(string)
+    // Events for tabs and compile
+    | SetCompileOutput(array<string>, bool) // output lines, isError
+    | SetCompileStatus(bool) // isCompiling
+    | SetActiveTab(Common.Tab.t)
+    | SetCommandPreview(string) // full Agda compile command preview
 
   let toString = x =>
     switch x {
@@ -141,6 +146,10 @@ module EventToView = {
     | PromptIMUpdate(s) => "PromptIMUpdate " ++ s
     | InputMethod(_) => "InputMethod"
     | ConfigurationChange(_) => "ConfigurationChange"
+    | SetCompileOutput(_, _) => "SetCompileOutput"
+    | SetCompileStatus(isCompiling) => "SetCompileStatus " ++ (isCompiling ? "true" : "false")
+    | SetActiveTab(tab) => "SetActiveTab " ++ Common.Tab.toString(tab)
+    | SetCommandPreview(_) => "SetCommandPreview"
     }
 
   let decode = {
@@ -160,6 +169,13 @@ module EventToView = {
       | "PromptIMUpdate" => Payload(string->map(text => PromptIMUpdate(text)))
       | "InputMethod" => Payload(InputMethod.decode->map(payload => InputMethod(payload)))
       | "ConfigurationChange" => Payload(string->map(text => ConfigurationChange(text)))
+      | "SetCompileOutput" =>
+        Payload(
+          tuple2(array(string), bool)->map(((output, isError)) => SetCompileOutput(output, isError)),
+        )
+      | "SetCompileStatus" => Payload(bool->map(isCompiling => SetCompileStatus(isCompiling)))
+      | "SetActiveTab" => Payload(Common.Tab.decode->map(tab => SetActiveTab(tab)))
+      | "SetCommandPreview" => Payload(string->map(preview => SetCommandPreview(preview)))
       | tag => raise(DecodeError("[EventToView] Unknown constructor: " ++ tag))
       }
     })
@@ -178,6 +194,11 @@ module EventToView = {
       | PromptIMUpdate(text) => Payload("PromptIMUpdate", string(text))
       | InputMethod(payload) => Payload("InputMethod", InputMethod.encode(payload))
       | ConfigurationChange(text) => Payload("ConfigurationChange", string(text))
+      | SetCompileOutput(output, isError) =>
+        Payload("SetCompileOutput", tuple2(array(string), bool)((output, isError)))
+      | SetCompileStatus(isCompiling) => Payload("SetCompileStatus", bool(isCompiling))
+      | SetActiveTab(tab) => Payload("SetActiveTab", Common.Tab.encode(tab))
+      | SetCommandPreview(preview) => Payload("SetCommandPreview", string(preview))
       }
     , ...)
   }
@@ -342,6 +363,13 @@ module EventFromView = {
     | PromptIMUpdate(PromptIMUpdate.t)
     | JumpToTarget(Link.t)
     | ConnectionStatusClicked
+    // Events for tabs and compile
+    | TabChanged(Common.Tab.t)
+    | CompileRequested(Common.CompileOptions.t)
+    | CompileOptionsChanged(Common.CompileOptions.t)
+    | RunBinaryRequested(string, string) // (command, outputPath)
+    | AgdaFlagsChanged(Common.AgdaFlags.t) // flags changed, need to update config
+    | CommandRequested(string) // command name from toolbar
 
   let toString = x =>
     switch x {
@@ -351,6 +379,12 @@ module EventFromView = {
     | PromptIMUpdate(_) => "PromptIMUpdate"
     | JumpToTarget(_) => "JumpToTarget"
     | ConnectionStatusClicked => "ConnectionStatusClicked"
+    | TabChanged(tab) => "TabChanged " ++ Common.Tab.toString(tab)
+    | CompileRequested(_) => "CompileRequested"
+    | CompileOptionsChanged(_) => "CompileOptionsChanged"
+    | RunBinaryRequested(cmd, _) => "RunBinaryRequested " ++ cmd
+    | AgdaFlagsChanged(_) => "AgdaFlagsChanged"
+    | CommandRequested(cmd) => "CommandRequested " ++ cmd
     }
 
   let chan: Chan.t<t> = Chan.make()
@@ -376,12 +410,21 @@ module EventFromView = {
       | "PromptIMUpdate" => Payload(PromptIMUpdate.decode->map(payload => PromptIMUpdate(payload)))
       | "JumpToTarget" => Payload(Link.decode->map(link => JumpToTarget(link)))
       | "ConnectionStatusClicked" => TagOnly(ConnectionStatusClicked)
+      | "TabChanged" => Payload(Common.Tab.decode->map(tab => TabChanged(tab)))
+      | "CompileRequested" =>
+        Payload(Common.CompileOptions.decode->map(opts => CompileRequested(opts)))
+      | "CompileOptionsChanged" =>
+        Payload(Common.CompileOptions.decode->map(opts => CompileOptionsChanged(opts)))
+      | "RunBinaryRequested" => Payload(tuple2(string, string)->map(((cmd, outputPath)) => RunBinaryRequested(cmd, outputPath)))
+      | "AgdaFlagsChanged" => Payload(Common.AgdaFlags.decode->map(flags => AgdaFlagsChanged(flags)))
+      | "CommandRequested" => Payload(string->map(cmd => CommandRequested(cmd)))
       | tag => raise(DecodeError("[EventFromView] Unknown constructor: " ++ tag))
       }
     })
   }
 
   let encode = {
+    open JsonCombinators.Json.Encode
     Util.Encode.sum(x =>
       switch x {
       | Initialized => TagOnly("Initialized")
@@ -390,6 +433,13 @@ module EventFromView = {
       | PromptIMUpdate(action) => Payload("PromptIMUpdate", PromptIMUpdate.encode(action))
       | JumpToTarget(link) => Payload("JumpToTarget", Link.encode(link))
       | ConnectionStatusClicked => TagOnly("ConnectionStatusClicked")
+      | TabChanged(tab) => Payload("TabChanged", Common.Tab.encode(tab))
+      | CompileRequested(opts) => Payload("CompileRequested", Common.CompileOptions.encode(opts))
+      | CompileOptionsChanged(opts) =>
+        Payload("CompileOptionsChanged", Common.CompileOptions.encode(opts))
+      | RunBinaryRequested(cmd, outputPath) => Payload("RunBinaryRequested", tuple2(string, string)((cmd, outputPath)))
+      | AgdaFlagsChanged(flags) => Payload("AgdaFlagsChanged", Common.AgdaFlags.encode(flags))
+      | CommandRequested(cmd) => Payload("CommandRequested", string(cmd))
       }
     , ...)
   }

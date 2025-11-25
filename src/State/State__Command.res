@@ -16,6 +16,8 @@ let rec dispatchCommand = async (state: State.t, command): unit => {
   let header = View.Header.Plain(Command.toString(command))
   switch command {
   | Load =>
+    // Update status bar to "Checking"
+    State__StatusBar.onLoadStart()
     await State__View.DebugBuffer.restore(state)
     await State__View.Panel.display(state, Plain("Loading ..."), [])
     // save the document before loading
@@ -362,7 +364,9 @@ let rec dispatchCommand = async (state: State.t, command): unit => {
   | SwitchAgdaVersion => await State__SwitchVersion.activate(state, state.platformDeps)
   | EventFromView(event) =>
     switch event {
-    | Initialized => ()
+    | Initialized =>
+      // Send initial command preview
+      await State__View.Panel.updateCommandPreview(state, Common.CompileOptions.default)
     | Destroyed =>
       switch await State.destroy(state, true) {
       | Error(error) =>
@@ -407,6 +411,131 @@ let rec dispatchCommand = async (state: State.t, command): unit => {
           })
         }
       | Hole(index) => Goals.setCursorByIndex(state.goals, state.editor, index)
+      }
+    | TabChanged(_tab) =>
+      // Tab changes are handled in the view, no action needed on backend
+      ()
+    | CompileRequested(_opts) =>
+      // TODO: Implement compile with options
+      // For now, use the default compile command
+      await dispatchCommand(Compile)
+    | CompileOptionsChanged(opts) =>
+      // Options changes are stored in the view state
+      // Update the command preview
+      await State__View.Panel.updateCommandPreview(state, opts)
+    | RunBinaryRequested(command, outputPath) =>
+      // Get the working directory from the current document
+      let filePath = state.document->VSCode.TextDocument.fileName
+      let fileDir = NodeJs.Path.dirname(filePath)
+      
+      // Build the full command: cd to output path (if specified) then run the command
+      let fullCommand = if outputPath != "" && outputPath != "." {
+        // Use cd with the output path and then run the command
+        // This handles the case where the directory might not exist yet
+        `cd "${outputPath}" && ${command}`
+      } else {
+        command
+      }
+      
+      // Create a terminal in the file's directory and run the command
+      let runInTerminal: (string, string) => unit = %raw(`
+        function(cwd, cmd) {
+          const vscode = require("vscode");
+          const terminal = vscode.window.createTerminal({
+            name: "Agda Run",
+            cwd: cwd
+          });
+          terminal.show(false);
+          terminal.sendText(cmd);
+        }
+      `)
+      runInTerminal(fileDir, fullCommand)
+    | AgdaFlagsChanged(flags) =>
+      // Convert flags to command line options string
+      let args = Common.AgdaFlags.toArgs(flags)
+      let optionsString = args->Array.join(" ")
+
+      // Save to VSCode settings
+      let _ = await Config.Connection.setCommandLineOptions(optionsString)
+
+      // Show info message that restart is needed for changes to take effect
+      if Array.length(args) > 0 {
+        let _ = VSCode.Window.showInformationMessage(
+          "Agda flags updated. Restart the connection (C-c C-x C-r) for changes to take effect.",
+          [],
+        )
+      }
+    | CommandRequested(cmdString) =>
+      // Parse command string from toolbar and dispatch the appropriate command
+      // Command format: "command-name[Normalization]" or "command-name"
+      let parseNormalization = str =>
+        switch str {
+        | "AsIs" => Command.Normalization.AsIs
+        | "Simplified" => Simplified
+        | "Instantiated" => Instantiated
+        | "Normalised" => Normalised
+        | "HeadNormal" => HeadNormal
+        | _ => Simplified
+        }
+
+      let parseComputeMode = str =>
+        switch str {
+        | "DefaultCompute" => Command.ComputeMode.DefaultCompute
+        | "IgnoreAbstract" => IgnoreAbstract
+        | "UseShowInstance" => UseShowInstance
+        | _ => DefaultCompute
+        }
+
+      // Parse command string (format: "command[option]" or "command")
+      let parseCommand = (cmdStr: string): (string, option<string>) => {
+        let bracketRegex = %re("/^(.+)\[(.+)\]$/")
+        let matched = cmdStr->String.match(bracketRegex)
+        switch matched {
+        | Some(matches) =>
+          // Extract command and option from regex captures (index 0 is full match, 1 and 2 are groups)
+          // Get capture group 1 (command name)
+          let cmdPart = switch matches[1] {
+          | None => cmdStr
+          | Some(Some(c)) => c
+          | Some(None) => cmdStr
+          }
+          let optPart = switch matches[2] {
+          | Some(opt) => opt
+          | None => None
+          }
+          (cmdPart, optPart)
+        | None => (cmdStr, None)
+        }
+      }
+
+      let (cmd, opt) = parseCommand(cmdString)
+      switch (cmd, opt) {
+      // Goal query commands
+      | ("goal-type", Some(norm)) => await dispatchCommand(GoalType(parseNormalization(norm)))
+      | ("goal-type-and-context", Some(norm)) => await dispatchCommand(GoalTypeAndContext(parseNormalization(norm)))
+      | ("context", Some(norm)) => await dispatchCommand(Context(parseNormalization(norm)))
+      | ("infer-type", Some(norm)) => await dispatchCommand(InferType(parseNormalization(norm)))
+
+      // Goal operations
+      | ("give", None) => await dispatchCommand(Give)
+      | ("refine", None) => await dispatchCommand(Refine)
+      | ("auto", Some(norm)) => await dispatchCommand(Auto(parseNormalization(norm)))
+      | ("case", None) => await dispatchCommand(Case)
+      | ("elaborate-and-give", Some(norm)) => await dispatchCommand(ElaborateAndGive(parseNormalization(norm)))
+
+      // Inspect expression
+      | ("compute-normal-form", Some(mode)) => await dispatchCommand(ComputeNormalForm(parseComputeMode(mode)))
+      | ("module-contents", Some(norm)) => await dispatchCommand(ModuleContents(parseNormalization(norm)))
+      | ("why-in-scope", None) => await dispatchCommand(WhyInScope)
+
+      // Global commands
+      | ("show-goals", Some(norm)) => await dispatchCommand(ShowGoals(parseNormalization(norm)))
+      | ("show-constraints", None) => await dispatchCommand(ShowConstraints)
+      | ("solve-constraints", Some(norm)) => await dispatchCommand(SolveConstraints(parseNormalization(norm)))
+      | ("next-goal", None) => await dispatchCommand(NextGoal)
+      | ("previous-goal", None) => await dispatchCommand(PreviousGoal)
+
+      | _ => ()
       }
     }
   | Escape =>

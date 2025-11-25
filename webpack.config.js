@@ -24,6 +24,10 @@ module.exports = (env, argv) => {
                         test: /\.less$/,
                         loader: 'less-loader', // compiles Less to CSS
                     },
+                    {
+                        test: /\.css$/,
+                        use: ['style-loader', 'css-loader'], // for xterm.js CSS
+                    },
                 ],
             },
             plugins: [

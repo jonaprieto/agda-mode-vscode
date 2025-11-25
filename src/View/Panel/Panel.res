@@ -23,6 +23,15 @@ let make = (
 
   let (inputMethodState, runInputMethodAction) = React.useReducer(Keyboard.reducer, None)
 
+  // Tab and compile state
+  let (activeTab, setActiveTab) = React.useState(() => Common.Tab.Goals)
+  let (compileOptions, setCompileOptions) = React.useState(() => Common.CompileOptions.default)
+  let (compileOutput, setCompileOutput) = React.useState(() => [])
+  let (compileIsError, setCompileIsError) = React.useState(() => false)
+  let (isCompiling, setIsCompiling) = React.useState(() => false)
+  let (agdaFlags, setAgdaFlags) = React.useState(() => Common.AgdaFlags.default)
+  let (commandPreview, setCommandPreview) = React.useState(() => "")
+
   let setFontSize = %raw(` function (n) { document.documentElement.style.setProperty("--agdaMode-buffer-font-size", n + "px"); } `)
 
   // emit event Initialized on mount
@@ -56,14 +65,6 @@ let make = (
         }
       )
 
-      // let (promise, resolve) = Promise.pending()
-      // promptResponseResolver.current = Some(resolve)
-      // promise->Promise.map(x =>
-      //   switch x {
-      //   | None => View.Response.PromptInterrupted
-      //   | Some(result) => View.Response.PromptSuccess(result)
-      //   }
-      // )
       let promise = Promise.make((resolve, _) => promptResponseResolver.current = Some(resolve))
       switch await promise {
       | None => View.Response.PromptInterrupted
@@ -101,6 +102,12 @@ let make = (
     | ConfigurationChange(n) =>
       onSubmit(None)
       setFontSize(n)
+    | SetCompileOutput(output, isError) =>
+      setCompileOutput(_ => output)
+      setCompileIsError(_ => isError)
+    | SetCompileStatus(compiling) => setIsCompiling(_ => compiling)
+    | SetActiveTab(tab) => setActiveTab(_ => tab)
+    | SetCommandPreview(preview) => setCommandPreview(_ => preview)
     }
   )
 
@@ -112,6 +119,22 @@ let make = (
     | _ => ()
     }
   )
+
+  // Tab change handler
+  let handleTabChange = (tab: Common.Tab.t) => {
+    setActiveTab(_ => tab)
+    onEventFromView->Chan.emit(TabChanged(tab))
+  }
+
+  // Compile handler
+  let handleCompile = () => {
+    onEventFromView->Chan.emit(CompileRequested(compileOptions))
+  }
+
+  // Run binary handler
+  let handleRun = (command: string, outputPath: string) => {
+    onEventFromView->Chan.emit(RunBinaryRequested(command, outputPath))
+  }
 
   <Link.Event.Provider value=onLinkEvent>
     <View.EventFromView.Provider value=onEventFromView>
@@ -128,7 +151,37 @@ let make = (
             prompting
           />
         </div>
-        <Body items=body />
+        <div className="agda-mode-content">
+          <Tabs activeTab onTabChange=handleTabChange />
+          {switch activeTab {
+          | Goals =>
+            <>
+              <CommandToolbar
+                onCommand={cmd => onEventFromView->Chan.emit(CommandRequested(cmd))}
+              />
+              <Body items=body />
+            </>
+          | Compile =>
+            <CompileTab
+              options=compileOptions
+              onOptionsChange={opts => setCompileOptions(_ => opts)}
+              output=compileOutput
+              isError=compileIsError
+              isCompiling
+              onCompile=handleCompile
+              onRun=handleRun
+              commandPreview
+            />
+          | AgdaFlags =>
+            <OptionsTab
+              flags=agdaFlags
+              onFlagsChange={flags => {
+                setAgdaFlags(_ => flags)
+                onEventFromView->Chan.emit(AgdaFlagsChanged(flags))
+              }}
+            />
+          }}
+        </div>
       </section>
     </View.EventFromView.Provider>
   </Link.Event.Provider>

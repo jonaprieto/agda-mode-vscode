@@ -63,8 +63,18 @@ let make = (): Platform.t => module(Desktop)
 
 // this function is the entry point for the desktop extension bundle
 let activate = context => {
+  // Initialize status bar (singleton pattern via State__StatusBar)
+  let _ = State__StatusBar.getOrCreate(context)
+  
+  // Initialize diagnostics collection for VS Code problems panel
+  let _ = State__Diagnostics.init()
+
   // Delegate to common activation logic
   Main.activate(make(), context)
 }
 
-let deactivate = Main.deactivate
+let deactivate = () => {
+  State__StatusBar.destroy()
+  State__Diagnostics.dispose()
+  Main.deactivate()
+}

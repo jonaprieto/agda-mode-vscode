@@ -135,6 +135,14 @@ module Connection = {
     ->Option.mapOr([], s => String.trim(s)->String.split(" "))
     ->Array.filter(s => String.trim(s) != "")
 
+  // Set Agda command-line options (from AgdaFlags)
+  let setCommandLineOptions = (options: string) =>
+    Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.updateGlobalSettings(
+      "connection.commandLineOptions",
+      options,
+      None,
+    )
+
   // Agda Language Server port
   let getAgdaLanguageServerPort = () => {
     let raw =
@@ -222,8 +230,8 @@ module View = {
       )
     switch result {
     // | Some("left") => Left
-    | Some("right") => Right
-    | _ => Bottom
+    | Some("bottom") => Bottom
+    | _ => Right // Default to right side
     }
   }
 }
@@ -277,6 +285,45 @@ module InputMethod = {
   }
 }
 
+// Typecheck on open
+let getTypecheckOnOpen = () => {
+  let raw =
+    Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.get(
+      "typecheckOnOpen",
+    )
+  switch raw {
+  | Some(true) => true
+  | Some(false) => false
+  | _ => true // enabled by default
+  }
+}
+
+// Typecheck on save
+let getTypecheckOnSave = () => {
+  let raw =
+    Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.get(
+      "typecheckOnSave",
+    )
+  switch raw {
+  | Some(true) => true
+  | Some(false) => false
+  | _ => true // enabled by default
+  }
+}
+
+// Show error notifications
+let getShowErrorNotifications = () => {
+  let raw =
+    Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.get(
+      "showErrorNotifications",
+    )
+  switch raw {
+  | Some(true) => true
+  | Some(false) => false
+  | _ => true // enabled by default
+  }
+}
+
 module Buffer = {
   let getFontSize = () => {
     let config = Workspace.getConfiguration(Some("agdaMode"), None)
@@ -297,5 +344,79 @@ module Buffer = {
     | None => editorFontSize
     }
     size->Int.toString
+  }
+}
+
+module Compile = {
+  // Compile backend
+  let getBackend = (): Common.Backend.t => {
+    let raw =
+      Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.get(
+        "compile.backend",
+      )
+    switch raw {
+    | Some("GHCNoMain") => GHCNoMain
+    | Some("LaTeX") => LaTeX
+    | Some("QuickLaTeX") => QuickLaTeX
+    | Some("HTML") => HTML
+    | Some("JS") => JS
+    | _ => GHC
+    }
+  }
+
+  let setBackend = (backend: Common.Backend.t) => {
+    Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.updateGlobalSettings(
+      "compile.backend",
+      Common.Backend.toString(backend),
+      None,
+    )
+  }
+
+  // GHC options for compilation
+  let getGhcOptions = (): string => {
+    Workspace.getConfiguration(Some("agdaMode"), None)
+    ->WorkspaceConfiguration.get("compile.ghcOptions")
+    ->Option.getOr("")
+  }
+
+  let setGhcOptions = (options: string) => {
+    Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.updateGlobalSettings(
+      "compile.ghcOptions",
+      options,
+      None,
+    )
+  }
+
+  // Output path for compiled files
+  let getOutputPath = (): string => {
+    Workspace.getConfiguration(Some("agdaMode"), None)
+    ->WorkspaceConfiguration.get("compile.outputPath")
+    ->Option.getOr("")
+  }
+
+  let setOutputPath = (path: string) => {
+    Workspace.getConfiguration(Some("agdaMode"), None)->WorkspaceConfiguration.updateGlobalSettings(
+      "compile.outputPath",
+      path,
+      None,
+    )
+  }
+
+  // Get all compile options as a record
+  let getOptions = (): Common.CompileOptions.t => {
+    backend: getBackend(),
+    ghcOptions: getGhcOptions(),
+    mainModule: "", // empty means use current file
+    runCommand: "./Main", // default run command
+    outputPath: getOutputPath(),
+    htmlOptions: Common.HtmlOptions.default,
+    latexOptions: Common.LatexOptions.default,
+  }
+
+  // Set all compile options from a record
+  let setOptions = async (options: Common.CompileOptions.t) => {
+    let _ = await setBackend(options.backend)
+    let _ = await setGhcOptions(options.ghcOptions)
+    let _ = await setOutputPath(options.outputPath)
   }
 }

@@ -294,15 +294,29 @@ let activateWithoutContext = (
 
     // filter out ".agda.git" files
     if isAgda(document) {
-      Registry.get(document)
-      ->Option.flatMap(entry => entry.state)
-      ->Option.forEach(state => {
+      switch Registry.get(document)->Option.flatMap(entry => entry.state) {
+      | Some(state) =>
         // after switching tabs, the old editor would be "_disposed"
         // we need to replace it with this new one
         state.editor = editor
         state.document = document
         State__Command.dispatchCommand(state, Refresh)->ignore
-      })
+      | None =>
+        // Auto-typecheck on open if enabled
+        if Config.getTypecheckOnOpen() {
+          let state = initialize(
+            platformDeps,
+            channels,
+            extensionUri,
+            globalStorageUri,
+            memento,
+            editor,
+            None,
+          )
+          Registry.add(document, state)
+          State__Command.dispatchCommand(state, Load)->ignore
+        }
+      }
     }
   })->subscribe
 
@@ -335,6 +349,18 @@ let activateWithoutContext = (
       finalize(false)->ignore
     }
   })->subscribe
+
+  // on save document - typecheck if enabled
+  VSCode.Workspace.onDidSaveTextDocument(document => {
+    if isAgda(document) && Config.getTypecheckOnSave() {
+      Registry.get(document)
+      ->Option.flatMap(entry => entry.state)
+      ->Option.forEach(state => {
+        State__Command.dispatchCommand(state, Load)->ignore
+      })
+    }
+  })->subscribe
+
   // on triggering commands
   Inputs.onTriggerCommand(async (command, editor) => {
     let document = editor->VSCode.TextEditor.document

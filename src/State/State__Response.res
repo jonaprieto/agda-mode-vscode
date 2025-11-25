@@ -13,25 +13,84 @@ module DisplayInfo = {
     | Response.DisplayInfo.Generic(header, body) =>
       await State__View.Panel.display(state, Plain(header), body)
     | CompilationOk(body) =>
-      await State__View.Panel.display(state, Success("Compilation result"), [Item.plainText(body)])
+      // Send output to Compile tab and switch to it
+      let outputLines = body->String.split("\n")
+      await State__View.Panel.setCompileOutput(state, outputLines, false)
+      await State__View.Panel.setActiveTab(state, Common.Tab.Compile)
+      await State__View.Panel.display(state, Success("Compiled ✓"), [Item.plainText(body)])
     | CompilationOkALS(warnings, errors) =>
+      // Send output to Compile tab and switch to it
+      let allOutput = Array.concat(
+        ["The module was successfully compiled."],
+        Array.concat(warnings, errors)
+      )
+      let hasErrors = Array.length(errors) > 0
+      await State__View.Panel.setCompileOutput(state, allOutput, hasErrors)
+      await State__View.Panel.setActiveTab(state, Common.Tab.Compile)
+      
       let message = [Item.plainText("The module was successfully compiled.")]
       let errors = errors->Array.map(raw => Item.error(RichText.string(raw), Some(raw)))
       let warnings = warnings->Array.map(raw => Item.warning(RichText.string(raw), Some(raw)))
       await State__View.Panel.display(
         state,
-        Success("Compilation result"),
+        Success("Compiled ✓"),
         Array.flat([message, errors, warnings]),
       )
     | Constraints(None) => await State__View.Panel.display(state, Plain("No Constraints"), [])
     | Constraints(Some(body)) =>
       let items = Emacs__Parser2.parseOutputs(body)
       await State__View.Panel.display(state, Plain("Constraints"), items)
-    | AllGoalsWarnings(header, "nil") => await State__View.Panel.display(state, Success(header), [])
+    | AllGoalsWarnings(_header, "nil") =>
+      // Replace Agda's "*All Done*" with more meaningful message
+      // Clear diagnostics on success
+      State__Diagnostics.clearForUri(state.document->VSCode.TextDocument.uri)
+      await State__View.Panel.display(state, Success("Typecheck successful ✓"), [])
     | AllGoalsWarnings(header, body) =>
-      let items = Emacs__Parser2.parseAllGoalsWarnings(header, body)->Emacs__Parser2.render
+      let parsed = Emacs__Parser2.parseAllGoalsWarnings(header, body)
+      
+      // Update VS Code diagnostics with errors and warnings
+      State__Diagnostics.clearForUri(state.document->VSCode.TextDocument.uri)
+      let errors = parsed->Dict.get("errors")->Option.getOr([])
+      let warnings = parsed->Dict.get("warnings")->Option.getOr([])
+      errors->Array.forEach(raw => State__Diagnostics.addError(state.document, raw, Some(raw)))
+      warnings->Array.forEach(raw => State__Diagnostics.addWarning(state.document, raw, Some(raw)))
+      
+      // Show pop-up notification if there are errors
+      if Array.length(errors) > 0 && Config.getShowErrorNotifications() {
+        let fileName = state.document->VSCode.TextDocument.fileName->NodeJs.Path.basename
+        let errorCount = Array.length(errors)
+        let message = if errorCount == 1 {
+          "Agda: 1 error in " ++ fileName
+        } else {
+          "Agda: " ++ Int.toString(errorCount) ++ " errors in " ++ fileName
+        }
+        let _ = VSCode.Window.showErrorMessage(message, [])
+      }
+      
+      let items = parsed->Emacs__Parser2.render
       await State__View.Panel.display(state, Plain(header), items)
     | AllGoalsWarningsALS(header, goals, metas, warnings, errors) =>
+      // Update VS Code diagnostics
+      State__Diagnostics.clearForUri(state.document->VSCode.TextDocument.uri)
+      errors->Array.forEach(raw => {
+        State__Diagnostics.addError(state.document, raw, Some(raw))
+      })
+      warnings->Array.forEach(raw => {
+        State__Diagnostics.addWarning(state.document, raw, Some(raw))
+      })
+      
+      // Show pop-up notification if there are errors
+      if Array.length(errors) > 0 && Config.getShowErrorNotifications() {
+        let fileName = state.document->VSCode.TextDocument.fileName->NodeJs.Path.basename
+        let errorCount = Array.length(errors)
+        let message = if errorCount == 1 {
+          "Agda: 1 error in " ++ fileName
+        } else {
+          "Agda: " ++ Int.toString(errorCount) ++ " errors in " ++ fileName
+        }
+        let _ = VSCode.Window.showErrorMessage(message, [])
+      }
+      
       let errors = errors->Array.map(raw => Item.error(RichText.string(raw), Some(raw)))
       let warnings = warnings->Array.map(raw => Item.warning(RichText.string(raw), Some(raw)))
       await State__View.Panel.display(
@@ -43,6 +102,30 @@ module DisplayInfo = {
       let items = Emacs__Parser2.parseAndRenderTextWithLocation(body)
       await State__View.Panel.display(state, Plain("Time"), items)
     | Error(body) =>
+      // Add error to VS Code diagnostics
+      State__Diagnostics.clearForUri(state.document->VSCode.TextDocument.uri)
+      State__Diagnostics.addError(state.document, body, Some(body))
+      
+      // Show pop-up notification with error details if enabled
+      if Config.getShowErrorNotifications() {
+        let fileName = state.document->VSCode.TextDocument.fileName->NodeJs.Path.basename
+        // Truncate error message for notification (first 500 chars)
+        let truncatedError = if String.length(body) > 500 {
+          String.slice(body, ~start=0, ~end=500) ++ "..."
+        } else {
+          body
+        }
+        let messageOptions = {
+          VSCode.MessageOptions.modal: false,
+          detail: truncatedError,
+        }
+        let _ = VSCode.Window.showErrorMessageWithOptions(
+          "Agda: Type error in " ++ fileName,
+          messageOptions,
+          []
+        )
+      }
+      
       let items = Emacs__Parser2.parseError(body)->Emacs__Parser2.render
       await State__View.Panel.display(state, Error("Error"), items)
     | Intro(body) =>
@@ -319,6 +402,8 @@ let rec handle = async (
     }
 
   await handleResponse()
+  // Update status bar based on response
+  State__StatusBar.handleResponse(response)
   // emit Response when it's been handled
   state.channels.responseHandled->Chan.emit(response)
 }

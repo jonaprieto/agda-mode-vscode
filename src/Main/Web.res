@@ -47,8 +47,14 @@ let make = (): Platform.t => module(Web)
 
 // this function is the entry point for the web extension bundle
 let activate = context => {
+  // Initialize diagnostics collection for VS Code problems panel
+  let _ = State__Diagnostics.init()
+  
   // Delegate to common activation logic
   Main.activate(make(), context)
 }
 
-let deactivate = Main.deactivate
+let deactivate = () => {
+  State__Diagnostics.dispose()
+  Main.deactivate()
+}

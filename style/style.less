@@ -146,8 +146,8 @@
 
     .agda-mode-header-connection-status {
         color: @foreground-subtle;
-        font-size: 50%;
-        // font-variant: small-caps;
+        font-size: 80%;
+        font-weight: 500;
         
         &.clickable {
             cursor: pointer;
@@ -163,8 +163,8 @@
 
     @line-height: calc(var(--agdaMode-buffer-font-size)/1rem) rem;
 
-    padding-top: calc(@header-height + @padding);
-
+    // padding-top handled by .agda-mode-content wrapper
+    
     white-space: pre;
 
     font-family: var(--vscode-editor-font-family);
@@ -394,3 +394,562 @@
 .delimiter {
     color: @foreground-subtle
 }
+
+// ============================================
+// Content Wrapper (below fixed header)
+// ============================================
+
+.agda-mode-content {
+    // Position below the fixed header
+    padding: calc(@header-height + @padding) @root-padding @padding @root-padding;
+}
+
+// ============================================
+// Tab Navigation
+// ============================================
+
+.agda-mode-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px @root-padding;
+    background: @header-background;
+    border-bottom: 1px solid @foreground-subtle;
+
+    .tab {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 12px;
+        color: @foreground;
+        background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.1));
+        border: 1px solid var(--vscode-button-secondaryBorder, rgba(255, 255, 255, 0.2));
+        border-radius: 4px;
+        transition: all 0.15s ease;
+        font-weight: 500;
+
+        .codicon {
+            font-size: 14px;
+        }
+
+        &:hover {
+            background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.15));
+            color: @foreground;
+        }
+
+        &.active {
+            background: var(--vscode-button-background, @link);
+            color: var(--vscode-button-foreground, white);
+            border-color: var(--vscode-button-background, @link);
+            font-weight: 600;
+
+            .codicon {
+                color: inherit;
+            }
+        }
+    }
+}
+
+// ============================================
+// Compile Tab
+// ============================================
+
+.agda-mode-compile-tab {
+    padding: @padding @root-padding;
+    font-size: var(--agdaMode-buffer-font-size);
+
+    .command-preview-section {
+        display: flex;
+        flex-direction: column;
+        gap: calc(@padding / 2);
+        margin-bottom: @padding;
+        padding: @padding;
+        background: @body-background;
+        border-radius: 4px;
+        border-left: 3px solid var(--vscode-textLink-foreground);
+
+        label {
+            font-size: 85%;
+            color: @foreground-subtle;
+            font-weight: 500;
+        }
+
+        .command-preview {
+            font-family: var(--vscode-editor-font-family);
+            font-size: 90%;
+            color: var(--vscode-textLink-foreground);
+            background: @input-background;
+            padding: @padding;
+            border-radius: 3px;
+            word-break: break-all;
+            white-space: pre-wrap;
+            display: block;
+        }
+    }
+
+    .options-section {
+        background: @body-background;
+        padding: @padding;
+        margin-bottom: @padding;
+        border-radius: 4px;
+
+        h3 {
+            margin: 0 0 @padding 0;
+            font-size: 100%;
+            color: @foreground;
+        }
+
+        .backend-options {
+            margin-top: @padding;
+            padding: @padding;
+            background: @body-background;
+            border-radius: 3px;
+            border-left: 2px solid @foreground-subtle;
+        }
+
+        .option-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: calc(@padding / 2);
+            gap: @padding;
+
+            label {
+                min-width: 10ch;
+                color: @foreground-subtle;
+                font-size: 90%;
+            }
+
+            // Checkbox styling
+            &.checkbox {
+                label {
+                    min-width: auto;
+                    cursor: pointer;
+                }
+                input[type="checkbox"] {
+                    cursor: pointer;
+                    accent-color: @link;
+                }
+            }
+
+            select, input[type="text"] {
+                flex: 1;
+                padding: calc(@padding / 2);
+                background: @input-background;
+                color: @input;
+                border: 1px solid @foreground-subtle;
+                border-radius: 3px;
+                font-size: 90%;
+
+                &:focus {
+                    border-color: @link;
+                    outline: none;
+                }
+            }
+
+            select {
+                cursor: pointer;
+            }
+        }
+    }
+
+    .button-row {
+        display: flex;
+        gap: @padding;
+        margin-top: @padding;
+    }
+
+    .compile-button {
+        display: inline-flex;
+        align-items: center;
+        gap: calc(@padding / 2);
+        padding: calc(@padding / 2) @padding;
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: 1px solid var(--vscode-button-border, transparent);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 90%;
+        font-weight: bold;
+        transition: background 0.15s ease;
+
+        &:hover:not(:disabled) {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .codicon {
+            font-size: 14px;
+        }
+
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        &.compiling {
+            background: @warning;
+        }
+    }
+
+    // Run command input and button
+    .run-command-row {
+        .run-command-input-group {
+            display: flex;
+            flex: 1;
+            gap: calc(@padding / 2);
+            align-items: center;
+
+            .run-command-input {
+                flex: 1;
+            }
+
+            .run-button {
+                display: inline-flex;
+                align-items: center;
+                gap: calc(@padding / 2);
+                padding: calc(@padding / 2) @padding;
+                background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.1));
+                color: var(--vscode-button-secondaryForeground, @foreground);
+                border: 1px solid var(--vscode-button-secondaryBorder, rgba(255, 255, 255, 0.2));
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 90%;
+                font-weight: 500;
+                transition: all 0.15s ease;
+                white-space: nowrap;
+
+                .codicon {
+                    font-size: 14px;
+                }
+
+                &:hover:not(:disabled) {
+                    background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.15));
+                }
+
+                &:disabled, &.disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+            }
+        }
+    }
+
+    .output-section {
+        margin-top: @padding;
+
+        h3 {
+            margin: 0 0 calc(@padding / 2) 0;
+            font-size: 100%;
+            color: @foreground-subtle;
+        }
+    }
+
+    .compile-output {
+        background: @body-background;
+        border-radius: 4px;
+        max-height: 300px;
+        overflow-y: auto;
+
+        pre {
+            margin: 0;
+            padding: @padding;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: var(--vscode-editor-font-family);
+            font-size: 90%;
+            line-height: 1.4;
+        }
+
+        &.error pre {
+            color: @error;
+        }
+    }
+
+    .compile-output-empty {
+        padding: @padding;
+        color: @foreground-subtle;
+        font-style: italic;
+        font-size: 90%;
+    }
+
+}
+
+// ============================================
+// Goals Tab (reuses existing body styles)
+// ============================================
+
+.agda-mode-goals-tab {
+    // inherits styles from .agda-mode-body
+}
+
+// ============================================
+// Options Tab
+// ============================================
+
+.agda-mode-options-tab {
+    padding: @padding @root-padding;
+    font-size: var(--agdaMode-buffer-font-size);
+    overflow-y: auto;
+
+    .options-section {
+        background: @body-background;
+        padding: @padding;
+        margin-bottom: @padding;
+        border-radius: 4px;
+
+        h3 {
+            margin: 0 0 @padding 0;
+            font-size: 100%;
+            font-weight: 600;
+            color: @foreground;
+            border-bottom: 1px solid @foreground-subtle;
+            padding-bottom: calc(@padding / 2);
+        }
+    }
+
+    .flags-group, .options-group {
+        display: flex;
+        flex-direction: column;
+        gap: calc(@padding / 2);
+    }
+
+    .flag-row {
+        display: flex;
+        align-items: flex-start;
+        gap: @padding;
+        padding: calc(@padding / 2);
+        border-radius: 3px;
+        transition: background 0.1s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .flag-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: calc(@padding / 2);
+            cursor: pointer;
+            min-width: 220px;
+            flex-shrink: 0;
+
+            input[type="checkbox"] {
+                cursor: pointer;
+                accent-color: @link;
+                width: 16px;
+                height: 16px;
+                flex-shrink: 0;
+            }
+
+            .flag-name {
+                font-family: var(--vscode-editor-font-family);
+                font-size: 12px;
+                color: var(--vscode-textLink-foreground, @link);
+                background: var(--vscode-textBlockQuote-background, rgba(255, 255, 255, 0.1));
+                padding: 3px 8px;
+                border-radius: 3px;
+                text-decoration: none !important;
+                white-space: nowrap;
+            }
+        }
+
+        .flag-description {
+            color: @foreground-subtle;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+    }
+
+    .option-input-row {
+        display: flex;
+        align-items: center;
+        gap: @padding;
+        padding: calc(@padding / 2);
+
+        .option-label {
+            min-width: 120px;
+            color: @foreground-subtle;
+            font-size: 12px;
+        }
+
+        .option-text-input {
+            flex: 1;
+            padding: calc(@padding / 2) @padding;
+            background: @input-background;
+            color: @input;
+            border: 1px solid @foreground-subtle;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: var(--vscode-editor-font-family);
+
+            &:focus {
+                border-color: @link;
+                outline: none;
+            }
+
+            &::placeholder {
+                color: @foreground-subtle;
+                opacity: 0.6;
+            }
+        }
+    }
+
+    .active-flags-section {
+        background: @header-background;
+    }
+
+    .active-flags {
+        .flags-preview {
+            display: block;
+            font-family: var(--vscode-editor-font-family);
+            font-size: 12px;
+            color: var(--vscode-textLink-foreground);
+            background: @input-background;
+            padding: @padding;
+            border-radius: 3px;
+            word-break: break-all;
+        }
+
+        .no-flags {
+            color: @foreground-subtle;
+            font-style: italic;
+            font-size: 12px;
+        }
+    }
+
+    .restart-note {
+        margin-top: @padding;
+        padding: calc(@padding / 2) @padding;
+        font-size: 11px;
+        color: @foreground-subtle;
+        background: rgba(255, 193, 7, 0.1);
+        border-left: 2px solid @warning;
+        border-radius: 3px;
+
+        .codicon {
+            color: @warning;
+            margin-right: calc(@padding / 2);
+        }
+    }
+}
+
+// ============================================
+// Command Toolbar (Goals Tab)
+// ============================================
+
+.command-toolbar {
+    padding: @padding @root-padding;
+    background: @header-background;
+    border-bottom: 1px solid @foreground-subtle;
+    font-size: var(--agdaMode-buffer-font-size);
+
+    .toolbar-section {
+        margin-bottom: @padding;
+        padding: @padding;
+        background: @body-background;
+        border-radius: 4px;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+
+        h4 {
+            margin: 0 0 calc(@padding / 2) 0;
+            font-size: 90%;
+            font-weight: 600;
+            color: @foreground;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    }
+
+    .command-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: calc(@padding / 2);
+    }
+
+    .command-button {
+        display: inline-flex;
+        align-items: center;
+        gap: calc(@padding / 2);
+        padding: calc(@padding / 2) @padding;
+        background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.1));
+        color: var(--vscode-button-secondaryForeground, @foreground);
+        border: 1px solid var(--vscode-button-secondaryBorder, rgba(255, 255, 255, 0.2));
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 85%;
+        font-weight: 500;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+
+        .codicon {
+            font-size: 13px;
+        }
+
+        &:hover {
+            background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.2));
+            transform: translateY(-1px);
+        }
+
+        &:active {
+            transform: translateY(0);
+        }
+
+        &.with-dropdown {
+            border-radius: 4px 0 0 4px;
+            border-right: none;
+        }
+    }
+
+    .command-with-dropdown {
+        display: inline-flex;
+        align-items: stretch;
+
+        select {
+            padding: calc(@padding / 2);
+            background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.1));
+            color: var(--vscode-button-secondaryForeground, @foreground);
+            border: 1px solid var(--vscode-button-secondaryBorder, rgba(255, 255, 255, 0.2));
+            border-radius: 0 4px 4px 0;
+            font-size: 85%;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            min-width: 10ch;
+
+            &:hover {
+                background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.2));
+            }
+        }
+    }
+
+    .normalization-select,
+    .compute-mode-select {
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right calc(@padding / 2) center;
+        background-size: 1em;
+        padding-right: calc(@padding * 2);
+    }
+}
+
+// ============================================
+// Animations
+// ============================================
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+

@@ -23,10 +23,14 @@ let sendRequest = async (
     | Ok() =>
       // display the connection state
       await State__View.Panel.displayConnectionStatus(state, Some(connection))
-      // update versions
+      // update versions and status bar
       switch connection {
-      | Agda(_, _, version) => state.agdaVersion = Some(version)
-      | ALS(_, _, Some(_alsVersion, agdaVersion, _)) => state.agdaVersion = Some(agdaVersion)
+      | Agda(_, _, version) =>
+        state.agdaVersion = Some(version)
+        State__StatusBar.setVersion(version)
+      | ALS(_, _, Some(_alsVersion, agdaVersion, _)) =>
+        state.agdaVersion = Some(agdaVersion)
+        State__StatusBar.setVersion(agdaVersion)
       | ALS(_, _, None) => state.agdaVersion = None
       }
     }

@@ -16,6 +16,11 @@ module type Panel = {
   let interruptPrompt: State.t => promise<unit>
   // Style
   let setFontSize: (State.t, string) => promise<unit>
+  // Compile tab
+  let setCompileOutput: (State.t, array<string>, bool) => promise<unit>
+  let setActiveTab: (State.t, Common.Tab.t) => promise<unit>
+  let setCommandPreview: (State.t, string) => promise<unit>
+  let updateCommandPreview: (State.t, Common.CompileOptions.t) => promise<unit>
 }
 
 module Panel: Panel = {
@@ -56,6 +61,73 @@ module Panel: Panel = {
   // update the Input Method
   let updateIM = (state, event) => sendEvent(state, InputMethod(event))
   let updatePromptIM = (state, content) => sendEvent(state, PromptIMUpdate(content))
+
+  // update the Compile tab output
+  let setCompileOutput = (state, output, isError) => sendEvent(state, SetCompileOutput(output, isError))
+  let setActiveTab = (state, tab) => sendEvent(state, SetActiveTab(tab))
+  
+  // update the command preview
+  let setCommandPreview = (state, preview) => sendEvent(state, SetCommandPreview(preview))
+
+  // Build and update the compile command preview
+  let updateCommandPreview = (state: State.t, options: Common.CompileOptions.t) => {
+    // Get the Agda binary path from connection
+    let agdaPath = switch state.connection {
+    | Some(Agda(_, path, _)) => path
+    | Some(ALS(_, path, _)) => path
+    | None => "agda"
+    }
+
+    // Get the file name: use mainModule if specified, otherwise current file
+    let fileName = if options.mainModule != "" {
+      options.mainModule
+    } else {
+      state.document->VSCode.TextDocument.fileName
+    }
+
+    // Build backend flag
+    let backendFlag = switch options.backend {
+    | GHC => "--compile"
+    | GHCNoMain => "--compile --ghc-flag=-main-is --ghc-flag=Main"
+    | LaTeX => "--latex"
+    | QuickLaTeX => "--latex --only-scope-checking"
+    | HTML => "--html"
+    | JS => "--js"
+    }
+
+    // Build output path flag
+    let outputFlag = if options.outputPath != "" {
+      switch options.backend {
+      | GHC | GHCNoMain => "--compile-dir=" ++ options.outputPath
+      | LaTeX | QuickLaTeX => "--latex-dir=" ++ options.outputPath
+      | HTML => "--html-dir=" ++ options.outputPath
+      | JS => ""
+      }
+    } else {
+      ""
+    }
+
+    // Build GHC options flags
+    let ghcFlags = switch options.backend {
+    | GHC | GHCNoMain =>
+      if options.ghcOptions != "" {
+        options.ghcOptions
+        ->String.split(" ")
+        ->Array.filter(s => s != "")
+        ->Array.map(flag => "--ghc-flag=" ++ flag)
+        ->Array.join(" ")
+        } else {
+        ""
+      }
+    | _ => ""
+    }
+
+    // Construct the full command
+    let parts = [agdaPath, backendFlag, outputFlag, ghcFlags, fileName]->Array.filter(s => s != "")
+    let preview = parts->Array.join(" ")
+
+    sendEvent(state, SetCommandPreview(preview))
+  }
 
   let setFontSize = (state, fontSize) => sendEvent(state, ConfigurationChange(fontSize))
 

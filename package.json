@@ -11,6 +11,15 @@
 	"categories": [
 		"Other"
 	],
+	"activationEvents": [
+		"onLanguage:agda",
+		"onLanguage:lagda-markdown",
+		"onLanguage:lagda-typst",
+		"onLanguage:lagda-tex",
+		"onLanguage:lagda-rst",
+		"onLanguage:lagda-org",
+		"onLanguage:lagda-forester"
+	],
 	"main": "./dist/app.bundle.js",
 	"browser": "./dist/web.bundle.js",
 	"repository": "https://github.com/banacorn/agda-mode-vscode",
@@ -28,6 +37,7 @@
 		"buffer": "^6.0.3",
 		"copy-webpack-plugin": "^6.0.3",
 		"crypto-browserify": "^3.12.1",
+		"css-loader": "^7.1.2",
 		"glob": "^7.1.6",
 		"less": "^4.1.1",
 		"less-loader": "^7.0.2",
@@ -38,6 +48,7 @@
 		"rescript-fast-check": "github:banacorn/rescript-fast-check",
 		"rescript-mocha": "github:DZakh-forks/rescript-mocha#uncurried",
 		"stream-browserify": "^3.0.0",
+		"style-loader": "^4.0.0",
 		"url": "^0.11.4",
 		"webpack": "^5.76.0",
 		"webpack-bundle-analyzer": "^4.10.2",
@@ -1246,7 +1257,56 @@
 						"QuickLaTeX"
 					],
 					"scope": "machine-overridable",
-					"description": "Backend target"
+					"description": "Backend target (legacy, use compile.backend instead)"
+				},
+				"agdaMode.compile.backend": {
+					"type": "string",
+					"default": "GHC",
+					"enum": [
+						"GHC",
+						"GHCNoMain",
+						"LaTeX",
+						"QuickLaTeX",
+						"HTML",
+						"JS"
+					],
+					"enumDescriptions": [
+						"Compile to Haskell with main function",
+						"Compile to Haskell as a library (no main)",
+						"Generate LaTeX output",
+						"Generate QuickLaTeX output",
+						"Generate HTML documentation",
+						"Compile to JavaScript"
+					],
+					"scope": "machine-overridable",
+					"description": "Backend for compilation"
+				},
+				"agdaMode.compile.ghcOptions": {
+					"type": "string",
+					"default": "",
+					"scope": "machine-overridable",
+					"description": "Additional GHC flags for compilation (e.g., \"-O2 -Wall\")"
+				},
+				"agdaMode.compile.outputPath": {
+					"type": "string",
+					"default": "",
+					"scope": "machine-overridable",
+					"description": "Output directory for compiled files (relative to workspace)"
+				},
+				"agdaMode.typecheckOnOpen": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically typecheck files when opened."
+				},
+				"agdaMode.typecheckOnSave": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically typecheck files when saved."
+				},
+				"agdaMode.showErrorNotifications": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show pop-up notifications when type errors occur."
 				},
 				"agdaMode.inputMethod.enabled": {
 					"type": "boolean",
